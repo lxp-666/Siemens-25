@@ -63,6 +63,10 @@ DSTATUS disk_initialize (
             return STA_NOINIT;
         }
         if(SD_OK == status){
+			{
+                volatile uint32_t _card_delay = 180000;
+                while(_card_delay--){}
+            }
             return 0;
         }else{
             return STA_NOINIT;

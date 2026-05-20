@@ -38,33 +38,42 @@ int fputc(int ch, FILE *f)
  * Author   :       Lingyu Meng
  * Date     :       2025-03-10 V0.1 original
 ************************************************************/
- void USART0_Config(void)
-  {
-      rcu_periph_clock_enable(RCU_GPIOA);    // 使能GPIO时钟
-      rcu_periph_clock_enable(RCU_USART0);   // 使能串口时钟
+void USART0_Config(void)
+{
+  rcu_periph_clock_enable(RCU_GPIOA);
+  rcu_periph_clock_enable(RCU_USART0);
 
-      gpio_af_set(GPIOA, GPIO_AF_7, GPIO_PIN_9 | GPIO_PIN_10);                          //配置端口复用
+  /* PA9 先保持 GPIO 输出高电平 (SystemInit 已设好，这里确保不被意外覆盖) */
+  gpio_mode_set(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_PULLUP, GPIO_PIN_9);
+  gpio_output_options_set(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_9);
+  GPIO_BOP(GPIOA) = GPIO_PIN_9;
 
-      gpio_mode_set(GPIOA, GPIO_MODE_AF, GPIO_PUPD_PULLUP, GPIO_PIN_9);                 //端口类型配置为复用
-      gpio_output_options_set(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_9);
+  /* RX 引脚 (PA10) 先配好 */
+  gpio_mode_set(GPIOA, GPIO_MODE_AF, GPIO_PUPD_PULLUP, GPIO_PIN_10);
 
-      gpio_mode_set(GPIOA, GPIO_MODE_AF, GPIO_PUPD_PULLUP, GPIO_PIN_10);        //端口类型配置为复用
+  /* 在 PA9 仍然是 GPIO 输出高电平时，完成 UART 外设初始化 */
+  usart_deinit(USART0);
+  usart_word_length_set(USART0, USART_WL_8BIT);
+  usart_stop_bit_set(USART0, USART_STB_1BIT);
+  usart_parity_config(USART0, USART_PM_NONE);
+  usart_baudrate_set(USART0, 115200U);
+  usart_receive_config(USART0, USART_RECEIVE_ENABLE);
+  usart_transmit_config(USART0, USART_TRANSMIT_ENABLE);
+  usart_hardware_flow_rts_config(USART0, USART_RTS_DISABLE);
+  usart_hardware_flow_cts_config(USART0, USART_CTS_DISABLE);
+  usart_enable(USART0);
 
-      usart_deinit(USART0);                                             // 串口复位
-      usart_word_length_set(USART0, USART_WL_8BIT);   // 字长为8位
-      usart_stop_bit_set(USART0, USART_STB_1BIT);     // 停止位1位
-      usart_parity_config(USART0, USART_PM_NONE);               // 无校验
-      usart_baudrate_set(USART0, 115200U);              // 波特率115200
-      usart_receive_config(USART0, USART_RECEIVE_ENABLE);     // 接收使能
-      usart_transmit_config(USART0, USART_TRANSMIT_ENABLE);   // 发送使能
-      usart_hardware_flow_rts_config(USART0, USART_RTS_DISABLE);
-      usart_hardware_flow_cts_config(USART0, USART_CTS_DISABLE);
-      usart_enable(USART0);                                                             // 串口使能
-      nvic_irq_enable(USART0_IRQn, 1, 0);                     // 使能USART0 NVIC中断
-      usart_interrupt_enable(USART0, USART_INT_RBNE);         // 使能接收缓冲区非空中断
-      while(RESET == usart_flag_get(USART0, USART_FLAG_TC));  // 等发信器真正就绪
-      usart_flag_clear(USART0, USART_FLAG_TC);                 // 清除TC标志
-  }
+  /* UART 外设已就绪，此时才把 PA9 切换到 AF 模式(UART TX) */
+  gpio_af_set(GPIOA, GPIO_AF_7, GPIO_PIN_9 | GPIO_PIN_10);
+  gpio_mode_set(GPIOA, GPIO_MODE_AF, GPIO_PUPD_PULLUP, GPIO_PIN_9);
+  gpio_output_options_set(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_9);
+
+  /* 中断配置 */
+  nvic_irq_enable(USART0_IRQn, 1, 0);
+  usart_interrupt_enable(USART0, USART_INT_RBNE);
+  while(RESET == usart_flag_get(USART0, USART_FLAG_TC));
+  usart_flag_clear(USART0, USART_FLAG_TC);
+}
 
 
 /************************************************************ 

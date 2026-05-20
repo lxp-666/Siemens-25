@@ -71,6 +71,7 @@ void System_Init(void)
 	spi_flash_init();	//FLASH初始化
 	OLED_Init();		//OLED初始化
 	
+	f_mount(0, &fs);
 }
 
 void UsrFunction(void)
@@ -78,6 +79,24 @@ void UsrFunction(void)
 	usart_rx_len = 0;
 	usart_rx_done = 0;
 	memset(usart_rx_buf, 0, sizeof(usart_rx_buf));
+	
+	///////////// 上电串口同步：发送 BREAK 清除接收端噪声 ////////////////////
+	// 上电瞬间 USB转串口芯片可能因TX引脚电平跳变收到乱码，
+	// 主动发送一个 BREAK (10+ bit时间的低电平) 可使接收端状态机复位
+	usart_enable(USART0);                                       // 确保 UART 已使能
+	usart_transmit_config(USART0, USART_TRANSMIT_DISABLE);      // 暂时关闭UART发送
+	gpio_mode_set(GPIOA, GPIO_MODE_OUTPUT, GPIO_PUPD_PULLUP, GPIO_PIN_9);
+	GPIO_BOP(GPIOA) = GPIO_PIN_9;                               // 先输出高
+	delay_1ms(2);                                               // 稳定2ms
+	gpio_bit_reset(GPIOA, GPIO_PIN_9);                          // 拉低 TX (BREAK 开始)
+	delay_1ms(10);                                              // 保持低电平10ms (>1字符帧)
+	gpio_bit_set(GPIOA, GPIO_PIN_9);                            // 拉高 TX (BREAK 结束)
+	delay_1ms(5);                                               // 保持高电平稳定5ms
+	gpio_af_set(GPIOA, GPIO_AF_7, GPIO_PIN_9);                  // 切回 UART TX 功能
+	gpio_mode_set(GPIOA, GPIO_MODE_AF, GPIO_PUPD_PULLUP, GPIO_PIN_9);
+	gpio_output_options_set(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO_PIN_9);
+	usart_transmit_config(USART0, USART_TRANSMIT_ENABLE);       // 重新使能UART发送
+	//////////////////////////////////////////////////////////////////////
 	
 	/////////////系统上电初始化测试//////////////////
 	printf("====system selftest====\r\n");
@@ -164,29 +183,41 @@ void Cmd_RTC_now(void)
 }
 
 void Cmd_test(void)
-{
-    DWORD fre_clust;
-    FRESULT res;
+  {
+      DWORD fre_clust;
+      FRESULT res;
 
-    /* Flash ID */
-    flash_id = spi_flash_read_id();
-	printf("flash..........ok");
-    printf("\r\nFlash ID: 0x%06X\r\n", flash_id);
+      /* Flash ID */
+      flash_id = spi_flash_read_id();
+      printf("flash..........ok");
+      printf("\r\nFlash ID: 0x%06X\r\n", flash_id);
 
-    /* TF Card Memory */
-    f_mount(0, &fs);
-    res = f_getfree("0:", &fre_clust, NULL);
-    if (res == FR_OK)
-    {
-        DWORD tot_sect = (fs.n_fatent - 2) * fs.csize;
-		printf("TF card..........ok\r\n");
-        printf("TF card memory: %lu KB\r\n", tot_sect / 2);
-    }
-    else
-    {
-        printf("TF card..........error (code=%d)\r\n", res);
-    }
-}
+      /* TF Card Memory */
+      f_mount(0, NULL);                       // 先完全卸载
+      res = f_mount(0, &fs);                  // 重新注册工作区
+      if (res == FR_OK) {
+          res = f_getfree("0:", &fre_clust, NULL);
+      }
+
+      /* 冷启动首次访问偶发失败，重试一次 */
+      if (res != FR_OK) {
+          delay_1ms(200);
+          f_mount(0, NULL);
+          f_mount(0, &fs);
+          res = f_getfree("0:", &fre_clust, NULL);
+      }
+
+      if (res == FR_OK)
+      {
+          DWORD tot_sect = (fs.n_fatent - 2) * fs.csize;
+          printf("TF card..........ok\r\n");
+          printf("TF card memory: %lu KB\r\n", tot_sect / 2);
+      }
+      else
+      {
+          printf("TF card..........error (code=%d)\r\n", res);
+      }
+  }
 
 
 const Cmd_TypeDef Cmd_Table[] = {

@@ -141,6 +141,10 @@ void SystemInit (void)
 #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
     SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  /* set CP10 and CP11 Full Access */
 #endif
+	RCU_AHB1EN |= RCU_AHB1EN_PAEN;           /* 使能 GPIOA 时钟 */
+    GPIO_BOP(GPIOA) = GPIO_BOP_BOP9;         /* 先写输出数据寄存器 — 输出高电平 */
+    GPIO_CTL(GPIOA) &= ~GPIO_CTL_CTL9;       /* 清除 PA9 MODE 域 */
+    GPIO_CTL(GPIOA) |= (0x01UL << 18);       /* PA9 MODE = 01 (输出模式) */
     /* Reset the RCU clock configuration to the default reset state */
     /* Set IRC16MEN bit */
     RCU_CTL |= RCU_CTL_IRC16MEN;

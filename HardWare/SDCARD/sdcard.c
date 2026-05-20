@@ -280,6 +280,10 @@ sd_error_enum sd_power_on(void)
     sdio_power_state_set(SDIO_POWER_ON);
     /* enable SDIO_CLK clock output */
     sdio_clock_enable();
+	{
+	  volatile uint32_t _delay = 120000;
+	  while(_delay--){}
+	}
     
     /* send CMD0(GO_IDLE_STATE) to reset the card */
     sdio_command_response_config(SD_CMD_GO_IDLE_STATE, (uint32_t)0x0, SDIO_RESPONSETYPE_NO);
