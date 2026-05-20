@@ -1,0 +1,227 @@
+/************************************************************
+ * 版权：2025CIMC Copyright。 
+ * 文件：Function.c
+ * 作者: Lingyu Meng
+ * 平台: 2025CIMC IHD-V04
+ * 版本: Lingyu Meng     2025/2/16     V0.01    original
+************************************************************/
+
+
+/************************* 头文件 *************************/
+
+#include <string.h>
+#include "Function.h"
+#include "LED.h"
+#include "USART.h"
+#include "SPI_FLASH.h"
+#include "RTC.h"
+#include "ff.h"			/* FatFs configurations and declarations */
+#include "diskio.h"		/* Declarations of low level disk I/O functions */
+#include "sdcard.h"
+#include "oled.h"
+
+/************************* 宏定义 *************************/
+#define  SFLASH_ID                     0x123456789
+#define BUFFER_SIZE                    256
+#define TX_BUFFER_SIZE                 BUFFER_SIZE
+#define RX_BUFFER_SIZE                 BUFFER_SIZE
+#define  FLASH_WRITE_ADDRESS           0x000000
+#define  FLASH_READ_ADDRESS            FLASH_WRITE_ADDRESS
+
+/************************ 变量定义 ************************/
+uint32_t flash_id = 0;
+uint8_t  tx_buffer[TX_BUFFER_SIZE];
+uint8_t  rx_buffer[TX_BUFFER_SIZE];
+uint16_t i = 0;
+uint8_t  is_successful = 0;
+
+uint8_t rtc_wait_input = 0;
+
+FATFS fs;
+
+/************************ 函数定义 ************************/
+ErrStatus memory_compare(uint8_t* src,uint8_t* dst,uint16_t length);
+
+typedef void (*CmdFunction)(void);
+typedef struct {
+    char *cmd_str;       
+    CmdFunction func;    
+} Cmd_TypeDef;
+void Cmd_Parse(void);
+void Cmd_RTC_Config(void);
+void Cmd_RTC_now(void);
+void Cmd_test(void);
+
+//十进制转为BCD
+uint8_t BCD(uint8_t dec)
+{
+    return ((dec / 10) << 4) | (dec % 10);
+}
+
+
+/************************ 主要函数 ************************/
+
+void System_Init(void)
+{
+	systick_config();     // 时钟配置
+	
+	LED_Init();			//LED初始化
+	USART0_Config();	//USART初始化
+	RTC_Init();			//RTC初始化
+	spi_flash_init();	//FLASH初始化
+	OLED_Init();		//OLED初始化
+	
+}
+
+void UsrFunction(void)
+{
+	usart_rx_len = 0;
+	usart_rx_done = 0;
+	memset(usart_rx_buf, 0, sizeof(usart_rx_buf));
+	
+	/////////////系统上电初始化测试//////////////////
+	printf("====system selftest====\r\n");
+    flash_id = spi_flash_read_id();
+	printf("\n\rDevice_ID:2025-CIMC-%X\n\r",flash_id);
+	printf("\n\r====system ready====\r\n");
+	OLED_ShowString(0,0,"system idle",16);
+	OLED_Refresh();
+	while(1)
+	{
+		Cmd_Parse();
+		
+		
+		
+		
+	
+	}
+}
+
+void Cmd_RTC_Config(void)
+  {
+      extern rtc_parameter_struct rtc_initpara;
+      extern __IO uint32_t prescaler_a;
+      extern __IO uint32_t prescaler_s;
+
+      int year, month, day, hour, minute, second;
+
+      printf("\r\nInput Datetime\r\n");
+
+      usart_rx_done = 0;
+      usart_rx_len  = 0;
+      memset(usart_rx_buf, 0, USART_RX_BUF_SIZE);
+      while (usart_rx_done == 0);
+
+      if (sscanf((char *)usart_rx_buf, "%d-%d-%d %d:%d:%d",
+                 &year, &month, &day, &hour, &minute, &second) != 6)
+      {
+          printf("\r\nFormat error! Use: YYYY MM DD HH:MM:SS\r\n");
+          printf("Example: 2025 01 01 12:00:30\r\n");
+          return;
+      }
+
+      if (year < 2000 || year > 2099 ||
+          month < 1  || month > 12   ||
+          day < 1    || day > 31     ||
+          hour > 23  || minute > 59  || second > 59)
+      {
+          printf("\r\nValue out of range!\r\n");
+          return;
+      }
+
+      rtc_initpara.year           = BCD(year % 100);
+      rtc_initpara.month          = BCD(month);
+      rtc_initpara.date           = BCD(day);
+      rtc_initpara.hour           = BCD(hour);
+      rtc_initpara.minute         = BCD(minute);
+      rtc_initpara.second         = BCD(second);
+      rtc_initpara.display_format = RTC_24HOUR;
+      rtc_initpara.am_pm          = RTC_AM;
+      rtc_initpara.day_of_week    = RTC_SATURDAY;
+      rtc_initpara.factor_asyn    = prescaler_a;
+      rtc_initpara.factor_syn     = prescaler_s;
+
+      if (ERROR == rtc_init(&rtc_initpara))
+      {
+          printf("\r\nRTC Config failed\r\n");
+      }
+      else
+      {
+          printf("\r\nRTC Config success\r\n");
+          rtc_show_time();
+          RTC_BKP0 = 0x32F0;     
+      }
+  }
+
+void Cmd_RTC_now(void)
+{
+	rtc_current_time_get(&rtc_initpara);
+    printf("\r\nCurrent Time: 20%0.2x-%0.2x-%0.2x", \
+           rtc_initpara.year, rtc_initpara.month, rtc_initpara.date);
+
+    printf(" : %0.2x:%0.2x:%0.2x \r\n", \
+           rtc_initpara.hour, rtc_initpara.minute, rtc_initpara.second);
+}
+
+void Cmd_test(void)
+{
+    DWORD fre_clust;
+    FRESULT res;
+
+    /* Flash ID */
+    flash_id = spi_flash_read_id();
+	printf("flash..........ok");
+    printf("\r\nFlash ID: 0x%06X\r\n", flash_id);
+
+    /* TF Card Memory */
+    f_mount(0, &fs);
+    res = f_getfree("0:", &fre_clust, NULL);
+    if (res == FR_OK)
+    {
+        DWORD tot_sect = (fs.n_fatent - 2) * fs.csize;
+		printf("TF card..........ok\r\n");
+        printf("TF card memory: %lu KB\r\n", tot_sect / 2);
+    }
+    else
+    {
+        printf("TF card..........error (code=%d)\r\n", res);
+    }
+}
+
+
+const Cmd_TypeDef Cmd_Table[] = {
+    {"RTC Config",  	Cmd_RTC_Config},
+	{"RTC now",   		Cmd_RTC_now},
+	{"test",   			Cmd_test},
+
+};
+
+#define CMD_NUM  (sizeof(Cmd_Table)/sizeof(Cmd_TypeDef))  	
+	
+void Cmd_Parse(void)
+{
+    if(usart_rx_done == 0) return;
+
+    uint8_t i;
+    uint8_t cmd_found = 0;
+    for(i=0; i<CMD_NUM; i++)
+    {
+        if(strcmp((char*)usart_rx_buf, Cmd_Table[i].cmd_str) == 0)
+        {
+            Cmd_Table[i].func();
+            cmd_found = 1;
+            break;
+        }
+    }
+
+    if(!cmd_found)
+    {
+        printf("Unknown Command: %s\r\n", usart_rx_buf);
+    }
+
+    usart_rx_len = 0;
+    usart_rx_done = 0;
+    memset(usart_rx_buf, 0, USART_RX_BUF_SIZE);
+}
+/****************************End*****************************/
+

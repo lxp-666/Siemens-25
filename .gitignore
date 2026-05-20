@@ -1,0 +1,12 @@
+# Keil MDK build outputs
+project/Objects/
+project/Listings/
+
+# Keil user-specific settings
+*.uvguix.*
+
+# JLink debugger settings
+JLinkSettings.ini
+
+# Claude AI settings
+.claude/
