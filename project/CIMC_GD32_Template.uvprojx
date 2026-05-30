@@ -134,11 +134,11 @@
             <RunIndependent>0</RunIndependent>
             <UpdateFlashBeforeDebugging>1</UpdateFlashBeforeDebugging>
             <Capability>1</Capability>
-            <DriverSelection>-1</DriverSelection>
+            <DriverSelection>4096</DriverSelection>
           </Flash1>
           <bUseTDR>1</bUseTDR>
           <Flash2>BIN\UL2CM3.DLL</Flash2>
-          <Flash3></Flash3>
+          <Flash3>"" ()</Flash3>
           <Flash4></Flash4>
           <pFcarmOut></pFcarmOut>
           <pFcarmGrp></pFcarmGrp>
@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER,GD32F470</Define>
               <Undefine></Undefine>
-              <IncludePath>..\CMSIS;..\Startup;..\Library\GD32F4xx_standard_peripheral\Include;..\User;..\HeaderFiles;..\Function;..\HardWare\LED;..\CMSIS\GD\GD32F4xx\Include;..\HardWare\KEY;..\HardWare\LED;..\HardWare\OLED;..\HardWare\RTC;..\HardWare\SDCARD;..\HardWare\SPI_FLASH;..\HardWare\USART;..\Fatfs</IncludePath>
+              <IncludePath>..\CMSIS;..\Startup;..\Library\GD32F4xx_standard_peripheral\Include;..\User;..\HeaderFiles;..\Function;..\HardWare\LED;..\CMSIS\GD\GD32F4xx\Include;..\HardWare\KEY;..\HardWare\LED;..\HardWare\OLED;..\HardWare\RTC;..\HardWare\SDCARD;..\HardWare\SPI_FLASH;..\Fatfs;..\HardWare\RS485;..\HardWare\USART;..\HardWare\ADC;..\HardWare\TIMER</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -435,9 +435,24 @@
               <FilePath>..\HardWare\SPI_FLASH\SPI_FLASH.c</FilePath>
             </File>
             <File>
+              <FileName>RS485.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\HardWare\RS485\RS485.c</FilePath>
+            </File>
+            <File>
               <FileName>USART.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\HardWare\USART\USART.c</FilePath>
+            </File>
+            <File>
+              <FileName>ADC.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\HardWare\ADC\ADC.c</FilePath>
+            </File>
+            <File>
+              <FileName>timer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\HardWare\TIMER\timer.c</FilePath>
             </File>
           </Files>
         </Group>

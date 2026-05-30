@@ -22,7 +22,10 @@ virtualFolder:
         - path: ../HardWare/RTC/RTC.c
         - path: ../HardWare/SDCARD/sdcard.c
         - path: ../HardWare/SPI_FLASH/SPI_FLASH.c
+        - path: ../HardWare/RS485/RS485.c
         - path: ../HardWare/USART/USART.c
+        - path: ../HardWare/ADC/ADC.c
+        - path: ../HardWare/TIMER/timer.c
       folders: []
     - name: Protocol
       files: []
@@ -117,13 +120,17 @@ targets:
         - ../HardWare/RTC
         - ../HardWare/SDCARD
         - ../HardWare/SPI_FLASH
-        - ../HardWare/USART
         - ../Fatfs
+        - ../HardWare/RS485
+        - ../HardWare/USART
+        - ../HardWare/ADC
+        - ../HardWare/TIMER
         - .cmsis/include
         - RTE/_CIMC_GD32_Template
       libList: []
     excludeList: []
-    settings: {}
+    settings:
+      debugger: cortex-debug
     toolchain: AC5
     toolchainConfigMap:
       AC5:

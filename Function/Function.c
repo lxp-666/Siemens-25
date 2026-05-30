@@ -19,6 +19,10 @@
 #include "diskio.h"		/* Declarations of low level disk I/O functions */
 #include "sdcard.h"
 #include "oled.h"
+#include "RS485.h"
+#include "timer.h"
+#include "ADC.h"
+
 
 /************************* 宏定义 *************************/
 #define  SFLASH_ID                     0x123456789
@@ -93,7 +97,8 @@ void System_Init(void)
 	RTC_Init();			//RTC初始化
 	spi_flash_init();	//FLASH初始化
 	OLED_Init();		//OLED初始化
-	
+	ADC_port_init();	//ADC初始化
+	my_timer_init();	//定时器初始化
 	f_mount(0, &fs);
 }
 
@@ -144,61 +149,71 @@ void UsrFunction(void)
 	}
 }
 
+void Cmd_start(void)
+{
+
+
+}
+void Cmd_stop(void)
+{
+	
+
+}
 void Cmd_RTC_Config(void)
-  {
-      extern rtc_parameter_struct rtc_initpara;
-      extern __IO uint32_t prescaler_a;
-      extern __IO uint32_t prescaler_s;
+{
+	extern rtc_parameter_struct rtc_initpara;
+	extern __IO uint32_t prescaler_a;
+	extern __IO uint32_t prescaler_s;
 
-      int year, month, day, hour, minute, second;
+	int year, month, day, hour, minute, second;
 
-      printf("\r\nInput Datetime\r\n");
+	printf("\r\nInput Datetime\r\n");
 
-      usart_rx_done = 0;
-      usart_rx_len  = 0;
-      memset(usart_rx_buf, 0, USART_RX_BUF_SIZE);
-      while (usart_rx_done == 0);
+	usart_rx_done = 0;
+	usart_rx_len  = 0;
+	memset(usart_rx_buf, 0, USART_RX_BUF_SIZE);
+	while (usart_rx_done == 0);
 
-      if (sscanf((char *)usart_rx_buf, "%d-%d-%d %d:%d:%d",
-                 &year, &month, &day, &hour, &minute, &second) != 6)
-      {
-          printf("\r\nFormat error! Use: YYYY MM DD HH:MM:SS\r\n");
-          printf("Example: 2025 01 01 12:00:30\r\n");
-          return;
-      }
+	if (sscanf((char *)usart_rx_buf, "%d-%d-%d %d:%d:%d",
+			 &year, &month, &day, &hour, &minute, &second) != 6)
+	{
+	  printf("\r\nFormat error! Use: YYYY MM DD HH:MM:SS\r\n");
+	  printf("Example: 2025 01 01 12:00:30\r\n");
+	  return;
+	}
 
-      if (year < 2000 || year > 2099 ||
-          month < 1  || month > 12   ||
-          day < 1    || day > 31     ||
-          hour > 23  || minute > 59  || second > 59)
-      {
-          printf("\r\nValue out of range!\r\n");
-          return;
-      }
+	if (year < 2000 || year > 2099 ||
+	  month < 1  || month > 12   ||
+	  day < 1    || day > 31     ||
+	  hour > 23  || minute > 59  || second > 59)
+	{
+	  printf("\r\nValue out of range!\r\n");
+	  return;
+	}
 
-      rtc_initpara.year           = BCD(year % 100);
-      rtc_initpara.month          = BCD(month);
-      rtc_initpara.date           = BCD(day);
-      rtc_initpara.hour           = BCD(hour);
-      rtc_initpara.minute         = BCD(minute);
-      rtc_initpara.second         = BCD(second);
-      rtc_initpara.display_format = RTC_24HOUR;
-      rtc_initpara.am_pm          = RTC_AM;
-      rtc_initpara.day_of_week    = RTC_SATURDAY;
-      rtc_initpara.factor_asyn    = prescaler_a;
-      rtc_initpara.factor_syn     = prescaler_s;
+	rtc_initpara.year           = BCD(year % 100);
+	rtc_initpara.month          = BCD(month);
+	rtc_initpara.date           = BCD(day);
+	rtc_initpara.hour           = BCD(hour);
+	rtc_initpara.minute         = BCD(minute);
+	rtc_initpara.second         = BCD(second);
+	rtc_initpara.display_format = RTC_24HOUR;
+	rtc_initpara.am_pm          = RTC_AM;
+	rtc_initpara.day_of_week    = RTC_SATURDAY;
+	rtc_initpara.factor_asyn    = prescaler_a;
+	rtc_initpara.factor_syn     = prescaler_s;
 
-      if (ERROR == rtc_init(&rtc_initpara))
-      {
-          printf("\r\nRTC Config failed\r\n");
-      }
-      else
-      {
-          printf("\r\nRTC Config success\r\n");
-          rtc_show_time();
-          RTC_BKP0 = 0x32F0;     
-      }
-  }
+	if (ERROR == rtc_init(&rtc_initpara))
+	{
+	  printf("\r\nRTC Config failed\r\n");
+	}
+	else
+	{
+	  printf("\r\nRTC Config success\r\n");
+	  rtc_show_time();
+	  RTC_BKP0 = 0x32F0;     
+	}
+}
 
 void Cmd_RTC_now(void)
 {
@@ -211,41 +226,41 @@ void Cmd_RTC_now(void)
 }
 
 void Cmd_test(void)
-  {
-      DWORD fre_clust;
-      FRESULT res;
+{
+	DWORD fre_clust;
+	FRESULT res;
 
-      /* Flash ID */
-      flash_id = spi_flash_read_id();
-      printf("flash..........ok");
-      printf("\r\nFlash ID: 0x%06X\r\n", flash_id);
+	/* Flash ID */
+	flash_id = spi_flash_read_id();
+	printf("flash..........ok");
+	printf("\r\nFlash ID: 0x%06X\r\n", flash_id);
 
-      /* TF Card Memory */
-      f_mount(0, NULL);                       // 先完全卸载
-      res = f_mount(0, &fs);                  // 重新注册工作区
-      if (res == FR_OK) {
-          res = f_getfree("0:", &fre_clust, NULL);
-      }
+	/* TF Card Memory */
+	f_mount(0, NULL);                       // 先完全卸载
+	res = f_mount(0, &fs);                  // 重新注册工作区
+	if (res == FR_OK) {
+	  res = f_getfree("0:", &fre_clust, NULL);
+	}
 
-      /* 冷启动首次访问偶发失败，重试一次 */
-      if (res != FR_OK) {
-          delay_1ms(200);
-          f_mount(0, NULL);
-          f_mount(0, &fs);
-          res = f_getfree("0:", &fre_clust, NULL);
-      }
+	/* 冷启动首次访问偶发失败，重试一次 */
+	if (res != FR_OK) {
+	  delay_1ms(200);
+	  f_mount(0, NULL);
+	  f_mount(0, &fs);
+	  res = f_getfree("0:", &fre_clust, NULL);
+	}
 
-      if (res == FR_OK)
-      {
-          DWORD tot_sect = (fs.n_fatent - 2) * fs.csize;
-          printf("TF card..........ok\r\n");
-          printf("TF card memory: %lu KB\r\n", tot_sect / 2);
-      }
-      else
-      {
-          printf("TF card..........error (code=%d)\r\n", res);
-      }
-  }
+	if (res == FR_OK)
+	{
+	  DWORD tot_sect = (fs.n_fatent - 2) * fs.csize;
+	  printf("TF card..........ok\r\n");
+	  printf("TF card memory: %lu KB\r\n", tot_sect / 2);
+	}
+	else
+	{
+	  printf("TF card..........error (code=%d)\r\n", res);
+	}
+}
 
 
 
